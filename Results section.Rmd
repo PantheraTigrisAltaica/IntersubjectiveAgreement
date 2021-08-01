@@ -1,0 +1,321 @@
+---
+title: "Results"
+author: "Chuyin"
+date: "2021/7/31"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library("scales")
+library(dplyr)
+library(tidyverse)
+library(ggplot2)
+load('preprocessed.RData')
+```
+
+
+```{r frequency - word IA}
+frequency$wf = as.factor(frequency$wf)
+
+#plot
+frequency %>% filter(wf != 1) %>% ggplot(mapping = aes(x = wf, y = IA)) + 
+  theme_bw() +
+  geom_boxplot() +
+  labs(
+    y = "Mean IA",
+    x = "Word frequency"
+  )
+```
+
+
+```{r}
+top_ia
+bottom_ia
+```
+
+
+```{r distributions of image-level variables}
+#image IA
+img_ia %>% ggplot(mapping = aes(x = imgIA)) + 
+  theme_bw() +
+  geom_density() +
+  labs(x = 'Image IA') +
+  theme(axis.title.x = element_text(size = 30), axis.title.y = element_text(size = 30), axis.text = element_text(size = 20))
+
+#1-person rate
+img_ia %>% ggplot(mapping = aes(x = proportion)) +
+  theme_bw() +
+  geom_density() +
+  labs(x = '1-Person rate', size = 5) +
+  theme(axis.title.x = element_text(size = 30), axis.title.y = element_text(size = 30), axis.text = element_text(size = 20))
+
+#freq
+img_ia %>% ggplot(mapping = aes(x = frequency)) +
+  theme_bw() +
+  labs(x = 'Mean Frequency of words for each image') +
+  geom_density(aes(y = ..density..)) +
+  scale_x_continuous(breaks=seq(2, 10, 1)) +
+  theme(axis.title.x = element_text(size = 20), axis.title.y = element_text(size = 20), axis.text = element_text(size = 20))
+
+#conf
+img_ia %>% ggplot(mapping = aes(x = conf)) +
+  theme_bw() +
+  labs(x = 'Mean confidence rating of words for each image') +
+  geom_density(aes(y = ..density..)) +
+  scale_x_continuous(breaks=seq(1, 5, 1)) +
+  theme(axis.title.x = element_text(size = 20), axis.title.y = element_text(size = 20), axis.text = element_text(size = 20))
+```
+
+
+```{r correlations}
+#freq
+img_ia %>% ggplot(mapping = aes(x = imgIA, y = frequency)) +
+  theme_bw() +
+  labs(x = 'Image IA', y = 'Mean frequency of words') +
+  geom_jitter() +
+  geom_smooth(method = 'lm') +
+  theme(axis.title.x = element_text(size = 30), axis.title.y = element_text(size = 20), axis.text = element_text(size = 20))
+
+#conf
+img_ia %>% ggplot(mapping = aes(x = imgIA, y = conf)) +
+  theme_bw() +
+  labs(x = 'Image IA', y = 'Mean confidence rating') +
+  geom_jitter() +
+  geom_smooth(method = 'lm') +
+  theme(axis.title.x = element_text(size = 30), axis.title.y = element_text(size = 20), axis.text = element_text(size = 20))
+
+#1-person rate
+img_ia %>% ggplot(mapping = aes(x = imgIA, y = proportion)) +
+  theme_bw() +
+  labs(x = 'Image IA', y = '1-person rate') +
+  geom_jitter() +
+  geom_smooth(method = 'lm') +
+  theme(axis.title.x = element_text(size = 30), axis.title.y = element_text(size = 30), axis.text = element_text(size = 20))
+
+#correlation tests
+cor.test(img_ia$imgIA, img_ia$frequency)
+cor.test(img_ia$imgIA, img_ia$proportion)
+cor.test(img_ia$imgIA, img_ia$conf)
+cor.test(img_ia$proportion, img_ia$conf)
+cor.test(img_ia$proportion, img_ia$frequency)
+cor.test(img_ia$frequency, img_ia$conf)
+
+cor.test(all_after$IA, all_after$freq)
+cor.test(all_after$IA, all_after$conf)
+```
+
+
+#start# analysis of highly similar images
+```{r SSE}
+all_after = all_after %>% ungroup()
+load('duplicate_similar_images.RData') #IDs of duplicate images
+dup_results = data.frame(row.names = c('Image_1', 'Image_2', 'SSE'))
+for (i in 2:nrow(duplicate_img_ids))
+{
+  temp = duplicate_img_ids[i,]
+  temp1 = temp[1,2]
+  temp = unlist(temp1)
+  dup = all_after %>% filter(img_id == temp[1] | img_id == temp[2])
+  words = data.frame(stem_word = unique(dup$stem_word))
+  
+  dup1 = all_after %>% filter(img_id == temp[1]) %>% select(-img_id)
+  dup2 = all_after %>% filter(img_id == temp[2]) %>% select(-img_id)
+  colnames(dup1)[2:4] = c('IA_1', 'freq_1', 'conf_1')
+  colnames(dup2)[2:4] = c('IA_2', 'freq_2', 'conf_2')
+  words = left_join(words, dup1, by = 'stem_word')
+  words = left_join(words, dup2, by = 'stem_word')
+  words[is.na(words)] = 0
+  words = words %>% mutate(SE = (freq_1 - freq_2)^2/2)
+  
+  SSE = sum(words$SE)
+  tmp = c(temp[1], temp[2], SSE)
+  dup_results = rbind(dup_results, tmp)
+
+}
+
+colnames(dup_results) = c('Image_1', 'Image_2', 'SSE')
+
+#an example
+words %>% ggplot(mapping = aes(x = freq_1, y = freq_2)) +
+  theme_bw() +
+  geom_point(size = 3) +
+  geom_abline(slope = 1, intercept = 0) +
+  labs(x = 'Image 1', y = 'Image 2') +
+  theme(axis.title.x = element_text(size = 30), axis.title.y = element_text(size = 30), axis.text = element_text(size = 20)) +
+  scale_x_continuous(breaks = seq(0, 12, 2))
+
+```
+
+
+```{r bootstrap}
+bootstrap = data.frame(row.names = c('No.', 'mean_SSE'))
+for (i in 1:100)
+{
+  dup_temp = data.frame(row.names = c('Image_1', 'Image_2', 'SSE'))
+  for (j in 2:25)
+  {
+    temp1 = duplicate_img_ids[j,]
+    temp = temp1[1,2]
+    temp1 = unlist(temp)
+    a = round(runif(1, 1, 2))
+    
+    b = round(runif(1, 2, 25))
+    temp2 = duplicate_img_ids[b,]
+    temp = temp2[1,2]
+    temp2 = unlist(temp)
+    c = round(runif(1, 1, 2))
+    
+    dup = all_after %>% filter(img_id == temp1[a] | img_id == temp2[c])
+    words = data.frame(stem_word = unique(dup$stem_word))
+  
+    dup1 = all_after %>% filter(img_id == temp1[a]) %>% select(-img_id)
+    dup2 = all_after %>% filter(img_id == temp2[c]) %>% select(-img_id)
+    colnames(dup1)[2:4] = c('IA_1', 'freq_1', 'conf_1')
+    colnames(dup2)[2:4] = c('IA_2', 'freq_2', 'conf_2')
+    words = left_join(words, dup1, by = 'stem_word')
+    words = left_join(words, dup2, by = 'stem_word')
+    words[is.na(words)] = 0
+    words = words %>% mutate(SE = (freq_1 - freq_2)^2/2)
+  
+    SSE = sum(words$SE)
+    tmp = c(temp1[a], temp2[c], SSE)
+    dup_temp = rbind(dup_temp, tmp)
+  }
+  colnames(dup_temp) = c('Image_1', 'Image_2', 'SSE')
+  mean = mean(dup_temp$SSE)
+  bootstrap = rbind(bootstrap, c(i, mean))
+}
+colnames(bootstrap) = c('Image_1', 'SSE')
+```
+
+
+```{r plot with 99%CI}
+bootstrap = bootstrap %>% mutate(Image_2 = Image_1, type = 'random') %>% select(Image_1, Image_2, SSE, type)
+dup_results$type = 'natural'
+dup_results$type[25:28] = 'artificial'
+dup_results = rbind(dup_results, bootstrap)
+
+library(Rmisc)
+naturalci = CI(dup_results$SSE[dup_results$type == 'natural'], ci = 0.99)
+artificialci = CI(dup_results$SSE[dup_results$type == 'artificial'], ci = 0.99)
+randomci = CI(dup_results$SSE[dup_results$type == 'random'], ci = 0.99)
+
+dup_results %>% ggplot(mapping = aes(x = SSE, color = type)) +
+  theme_bw() +
+  geom_density(size = 1) +
+  labs(x = 'Sum of Square of Error') +
+  theme(axis.title.x = element_text(size = 30), axis.title.y = element_text(size = 30), axis.text = element_text(size = 20), legend.text = element_text(size = 20), legend.title = element_text(size = 20)) +
+  geom_errorbarh(aes(xmin = naturalci[1], xmax = naturalci[3], y = 0.005), height = 0.001, color = 'green', size = 1) +
+  geom_errorbarh(aes(xmin = artificialci[1], xmax = artificialci[3], y = 0.0065), height = 0.001, color = 'red', size = 1) +
+  geom_errorbarh(aes(xmin = randomci[1], xmax = randomci[3], y = 0.013), height = 0.001, color = 'blue', size = 1)
+
+```
+#end# analysis of highly similar images
+
+
+#start# comparisons between SOA
+```{r mean number of response words with conf > 1}
+detach("package:Rmisc", unload = TRUE)
+detach("package:plyr", unload = TRUE)
+library('dplyr')
+remove_conf1 = master_df %>% filter(confidence != 1)
+participants = remove_conf1 %>% group_by(subject, img_id) %>% summarise(n = n(), soa = unique(soa))
+number_soa = participants %>% group_by(soa) %>% summarise(mean = mean(n), sd = sd(n))
+
+number_soa %>% ggplot(mapping = aes(x = soa, y = mean, color = soa, fill = soa)) +
+  theme_bw() +
+  geom_col(show.legend = FALSE) +
+  labs(x = 'SOA', y = 'Mean number of words') +
+  coord_cartesian(ylim = c(4,5)) +
+  scale_y_continuous(breaks=seq(4, 5, 0.2)) +
+  theme(axis.title.x = element_text(size = 20), axis.title.y = element_text(size = 20), axis.text = element_text(size = 20))
+
+number_soa_image = participants %>% group_by(soa, img_id) %>% summarise(mean = mean(n), sd = sd(n))
+
+number_soa_image %>% ggplot(mapping = aes(x = mean, color = soa, fill = soa)) +
+  theme_bw() +
+  geom_histogram() +
+  labs(x = 'Mean number of words') +
+  facet_wrap(~soa) +
+  scale_x_continuous(breaks=seq(3, 5, 1)) +
+  theme(axis.title.x = element_text(size = 20), axis.title.y = element_text(size = 20), axis.text = element_text(size = 20), legend.text = element_text(size = 20), legend.title = element_text(size = 20))
+```
+
+
+#calculated and using word IA for each SOA
+```{r remove conf = 1}
+load(file = "IA_perSOA.RData")
+IA_perSOA_after = IA_perSOA %>% filter(word_count != 1)
+```
+
+
+```{r ANOVA}
+img_ia_perSOA = IA_perSOA_after %>% group_by(img_id, soa) %>% summarise(imgIA = mean(avg_type1auc), freq = mean(word_count), conf = sum(word_count * mean_confidence)/sum(word_count))
+
+#freq
+freqmodel = aov(freq ~ soa, data = img_ia_perSOA)
+summary(freqmodel)
+posthocPairwiseT(x = freqmodel, p.adjust.method = 'holm')
+img_ia_perSOA %>% group_by(soa) %>% summarise(mean = mean(freq), sd = sd(freq)) %>% ungroup
+freqresidual = freqmodel$residuals
+#shapiro.test(x=freqresidual)
+leveneTest(freq ~ soa, data = img_ia_perSOA)
+oneway.test(freq ~ soa, data = img_ia_perSOA)
+
+#conf
+confmodel = aov(conf ~ soa, data = img_ia_perSOA)
+summary(confmodel)
+posthocPairwiseT(x = confmodel, p.adjust.method = 'holm')
+img_ia_perSOA %>% group_by(soa) %>% summarise(mean = mean(conf), sd = sd(conf)) %>% ungroup
+confresidual = confmodel$residuals
+#shapiro.test(x=confresidual)
+leveneTest(conf ~ soa, data = img_ia_perSOA)
+oneway.test(conf ~ soa, data = img_ia_perSOA)
+
+#image IA
+IAmodel = aov(imgIA ~ soa, data = img_ia_perSOA)
+summary(IAmodel)
+posthocPairwiseT(x = IAmodel, p.adjust.method = 'holm')
+img_ia_perSOA %>% group_by(soa) %>% summarise(mean = mean(imgIA), sd = sd(imgIA)) %>% ungroup
+IAresidual = IAmodel$residuals
+#shapiro.test(x=freqresidual)
+leveneTest(imgIA ~ soa, data = img_ia_perSOA)
+oneway.test(imgIA ~ soa, data = img_ia_perSOA)
+```
+
+
+```{r slope analysis}
+#calculate the slopes
+library(purrr)
+IA_perSOA_after$soa = as.numeric(IA_perSOA_after$soa)
+reg = IA_perSOA_after %>% group_by(img_id, soa) %>% summarise(IA = mean(avg_type1auc), freq = mean(word_count), conf = sum(word_count * mean_confidence)/sum(word_count))
+reg = reg %>% group_nest(img_id)
+reg = reg %>% mutate(model.ia = map(data, ~lm(IA ~ soa, data = .x)), model.conf = map(data, ~lm(conf ~ soa, data = .x)), model.freq = map(data, ~lm(freq ~ soa, data = .x)))
+
+#get the slopes
+result = reg %>% select(img_id)
+temp = img_ia %>% select(img_id, imgIA)
+result = left_join(result, temp, by = 'img_id')
+temp = t(reg$model.ia %>% map_dfc('coefficients'))
+result$slope.ia = temp[,2]
+temp = t(reg$model.freq %>% map_dfc('coefficients'))
+result$slope.freq = temp[,2]
+temp = t(reg$model.conf %>% map_dfc('coefficients'))
+result$slope.conf = temp[,2]
+
+#plot
+result %>% ggplot(mapping = aes(x = imgIA, y = slope.ia)) +
+  theme_bw() +
+  geom_jitter() +
+  geom_smooth(method = 'lm') +
+  labs(x = 'Image IA', y = 'Slope') +
+  theme(axis.title.x = element_text(size = 30), axis.title.y = element_text(size = 30), axis.text = element_text(size = 20))
+
+result %>% ggplot(mapping = aes(x = slope.ia)) +
+  theme_bw() +
+  geom_density() +
+  labs(x = 'Slope') +
+  theme(axis.title.x = element_text(size = 30), axis.title.y = element_text(size = 30), axis.text = element_text(size = 20))
+
+cor.test(result$imgIA, result$slope.ia)
+```

@@ -1,0 +1,134 @@
+---
+title: "Preprocessed dataset"
+author: "Chuyin"
+date: "2021/7/31"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+source('embed_import_libraries.R')
+source('embed_configuration.R')
+source('function-image_utilities.R')
+
+library("scales")
+library("grid")
+library("gridExtra")
+```
+
+
+```{r}
+## Data Summary
+
+load(file = "psy4100_master_data.RData")
+
+print(paste0("Total participants (includes Shinji's): ", total_subjects))
+print(paste0("Total participants (only MTurk): ", total_mturk_subjects))
+print(paste0("Total images (including 3 practice images):", length(included_img_ids)))
+
+# We ignore unlimited SOA (Alon's experiment)
+master_df <- master_raw_stem_df[soa != "Unlimited", ]
+
+# This is to replace the stem words with hyphen with the original.
+master_df[stem_word %like% "-,", stem_word := word ] 
+master_df[stem_word %like% ", -", stem_word := word ] 
+master_df[stem_word %like% "-, ", stem_word := word ] 
+
+# Also shift the confidence range.
+master_df$confidence <- master_df$confidence + 1
+```
+
+
+```{r extra setting}
+master_df = master_df %>% filter(!img_id %in% c(3,9,14))
+length(unique(master_df$img_id))
+```
+
+```{r, message=FALSE}
+source('functions-type1auc_intersubjectivity.R')
+# Build a giant list for all the image word data table based on image ids.
+all_image_ids <- unique(master_df$img_id)
+all_image_dfs <- NULL
+all_image_dfs <- vector(mode = "list", length = length(all_image_ids))
+for (img_index in 1:length(all_image_ids)) {
+  img_id <- all_image_ids[img_index]
+  img_df <- construct_subject_image_df(master_df, img_id, target_soa = 0)
+  all_image_dfs[[img_index]] <- img_df
+}
+```
+
+
+```{r word IA dataset}
+load('all_img_type1auc_no_practice.RData')
+
+# Calculate the stem_word + img_id + count
+word_img_count_df <- data.table()
+
+for (idx in 1:length(all_image_ids)) {
+  img_id <- all_image_ids[idx]
+  cur_image_df <- all_image_dfs[[idx]]  
+  
+  word_img_count_df <- rbind(word_img_count_df, cur_image_df[, .(word_count = .N, mean_confidence = mean(.SD$confidence)), by=c("img_id", "soa", "stem_word")])
+}
+
+all_img_type1auc_subject <- all_img_type1auc
+
+all_img_type1auc <- all_img_type1auc[, .(avg_type1auc = mean(type1auc), avg_type1auc_weighted = mean(type1auc_weighted)), by=c("stem_word", "soa", "img_id")]
+all_img_type1auc$soa <- factor(all_img_type1auc$soa)
+all_df <- merge(all_img_type1auc, word_img_count_df, all = FALSE)
+
+```
+
+
+```{r confidence}
+confidence_df <- copy(master_raw_df)
+confidence_df <- confidence_df[soa != 'Unlimited' & !img_id %in% c(3, 9, 14)]
+confidence_df$soa <- as.numeric(paste(confidence_df$soa))
+confidence_df$img_id <- as.factor(confidence_df$img_id)
+```
+
+
+```{r remove frequency = 1}
+detach("package:multcomp", unload = TRUE)
+detach("package:TH.data", unload = TRUE)
+detach("package:lme4", unload = TRUE)
+detach("package:MASS", unload = TRUE)
+library(dplyr)
+library(tidyverse)
+library(ggplot2)
+
+frequency = all_df %>% group_by(stem_word, img_id) %>% summarise(IA = mean(avg_type1auc), wf = sum(word_count))
+
+remove = frequency %>% filter(wf == 1) %>% select(-IA, -wf)
+remove$remove = 1
+all_remove = left_join(all_df, remove, by = c('stem_word', 'img_id'))
+all_after_sep = all_remove %>% filter(is.na(remove)) %>% select(-remove, -avg_type1auc_weighted)
+all_after = all_after_sep %>% group_by(img_id, stem_word) %>% summarise(IA = mean(avg_type1auc), freq = sum(word_count), conf = sum(word_count * mean_confidence)/sum(word_count))
+
+```
+
+
+```{r img IA top & bottom}
+img_ia = all_after %>% group_by(img_id) %>% summarise(imgIA = mean(IA))
+
+top_ia = head(img_ia %>% arrange(-imgIA), 5)
+bottom_ia = head(img_ia %>% arrange(imgIA), 5)
+```
+
+
+```{r 1-person rate}
+all_remove$remove[is.na(all_remove$remove)] = 0
+oneperson = all_remove %>% group_by(img_id) %>% summarise(total = length(unique(stem_word)), one = sum(remove))
+oneperson = oneperson %>% mutate(proportion = one/total)
+```
+
+
+```{r img-level dataset}
+img_ia = all_after %>% group_by(img_id) %>% summarise(imgIA = mean(IA), frequency = mean(freq), conf = sum(freq * conf)/sum(freq))
+img_ia = left_join(img_ia, oneperson %>% select(img_id, proportion), by = 'img_id')
+```
+
+
+```{r save}
+save(all_after, all_df, bottom_ia, confidence_df, frequency, img_ia, 
+         master_df, top_ia, file = 'preprocessed.RData')
+```

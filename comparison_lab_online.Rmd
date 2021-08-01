@@ -1,0 +1,116 @@
+---
+title: "comparison_lab_online"
+author: "Chuyin"
+date: "2021/7/31"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(dplyr)
+library(tidyverse)
+library(ggplot2)
+load('analysis_compare_lab_online.RData')
+```
+
+
+```{r}
+lab_raw_stem_df = lab_raw_stem_df %>% filter(!img_id %in% c(3,9,14))
+mt_raw_stem_df = mt_raw_stem_df %>% filter(!img_id %in% c(3,9,14))
+
+lab = lab_raw_stem_df %>% group_by(img_id, stem_word) %>% summarise(freq = sum(frequency)/10) %>% ungroup()
+online = data.frame(row.names = c('img_id', 'stem_word', 'freq'))
+for (i in unique(mt_raw_stem_df$img_id))
+{
+  target = mt_raw_stem_df %>% filter(img_id == i)
+  n = length(unique(target$subject))
+  temp = target %>% group_by(stem_word) %>% summarise(freq = sum(frequency)/n)
+  temp$img_id = i
+  temp = temp %>% select(img_id, stem_word, freq)
+  online = rbind(online, temp)
+}
+```
+
+
+
+```{r SSE}
+lab = lab %>% ungroup()
+online = online %>% ungroup()
+
+dup_results = data.frame(row.names = c('img_id', 'SSE'))
+for (i in unique(lab$img_id))
+{
+  dup1 = lab %>% filter(img_id == i) %>% select(-img_id)
+  dup2 = online %>% filter(img_id == i) %>% select(-img_id)
+  colnames(dup1)[2] = 'freq_lab'
+  colnames(dup2)[2] = 'freq_online'
+  
+  words = data.frame(stem_word = union(unique(dup1$stem_word), unique(dup2$stem_word)))
+  
+  words = left_join(words, dup1, by = 'stem_word')
+  words = left_join(words, dup2, by = 'stem_word')
+  words[is.na(words)] = 0
+  words = words %>% mutate(SE = (freq_lab - freq_online)^2/2)
+  
+  SSE = sum(words$SE)
+  tmp = c(i, SSE)
+  dup_results = rbind(dup_results, tmp)
+
+}
+
+colnames(dup_results) = c('img_id', 'SSE')
+```
+
+
+```{r bootstrap}
+img = unique(lab$img_id)
+bootstrap = data.frame(row.names = c('No.', 'mean_SSE'))
+for (i in 1:100)
+{
+  dup_temp = data.frame(row.names = c('Image_1', 'Image_2', 'SSE'))
+  for (j in 1:length(img))
+  {
+    a = round(runif(1, 1, length(img)))
+    b = round(runif(1, 1, length(img)))
+    
+    dup1 = lab %>% filter(img_id == img[a]) %>% select(-img_id)
+    dup2 = online %>% filter(img_id == img[b]) %>% select(-img_id)
+    colnames(dup1)[2] = 'freq_lab'
+    colnames(dup2)[2] = 'freq_online'
+    
+    words = data.frame(stem_word = union(unique(dup1$stem_word), unique(dup2$stem_word)))
+    words = left_join(words, dup1, by = 'stem_word')
+    words = left_join(words, dup2, by = 'stem_word')
+    words[is.na(words)] = 0
+    words = words %>% mutate(SE = (freq_lab - freq_online)^2/2)
+  
+    SSE = sum(words$SE)
+    tmp = c(img[a], img[b], SSE)
+    dup_temp = rbind(dup_temp, tmp)
+  }
+  colnames(dup_temp) = c('Image_1', 'Image_2', 'SSE')
+  mean = mean(dup_temp$SSE)
+  bootstrap = rbind(bootstrap, c(i, mean))
+}
+colnames(bootstrap) = c('img_id', 'SSE')
+
+bootstrap = bootstrap %>% mutate(type = 'random') %>% select(img_id, SSE, type)
+dup_results$type = 'match'
+dup_results = rbind(dup_results, bootstrap)
+```
+
+
+```{r plot with 99%CI}
+library(Rmisc)
+matchci = CI(dup_results$SSE[dup_results$type == 'match'], ci = 0.99)
+randomci = CI(dup_results$SSE[dup_results$type == 'random'], ci = 0.99)
+
+dup_results %>% ggplot(mapping = aes(x = SSE, color = type)) +
+  theme_bw() +
+  geom_density(size = 1) +
+  labs(x = 'Sum of Square of Error') +
+  theme(axis.title.x = element_text(size = 30), axis.title.y = element_text(size = 30), axis.text = element_text(size = 20), legend.text = element_text(size = 20), legend.title = element_text(size = 20)) +
+  geom_errorbarh(aes(xmin = matchci[1], xmax = matchci[3], y = 5), height = 1, color = 'green', size = 1) +
+  geom_errorbarh(aes(xmin = randomci[1], xmax = randomci[3], y = 23.5), height = 1, color = 'red', size = 1) +
+  scale_color_manual(values=c('green','red'))
+
+```
