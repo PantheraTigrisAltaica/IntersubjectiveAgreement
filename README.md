@@ -7,7 +7,7 @@ Raw data available here: https://osf.io/7spxd/
 
 <br/>
 
-The following major preprocessing code is made by Zhao Hui Koh. https://github.com/zhaokoh/gist-generation-analysis
+## The following major preprocessing code is made by Zhao Hui Koh. https://github.com/zhaokoh/gist-generation-analysis
 
 1, Raw data --> psy4100_master_data.RData
 
@@ -21,7 +21,7 @@ The following major preprocessing code is made by Zhao Hui Koh. https://github.c
 
 <br/>
 
-The following preprocessing and analysis code is made by Chuyin Zhang.
+## The following preprocessing and analysis code is made by Chuyin Zhang.
 
 1, psy4100_master_data.RData --> preprocessed.RData (calculating candidate variables)
 
