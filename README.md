@@ -5,7 +5,7 @@ This is the analysis code and dataset of Intersubjective Agreement (IA).
 
 Raw data available here: https://osf.io/7spxd/
 
-
+<br/>
 
 The following major preprocessing code is made by Zhao Hui Koh. https://github.com/zhaokoh/gist-generation-analysis
 
@@ -19,7 +19,7 @@ The following major preprocessing code is made by Zhao Hui Koh. https://github.c
 
 5, All functions
 
-
+<br/>
 
 The following preprocessing and analysis code is made by Chuyin Zhang.
 
