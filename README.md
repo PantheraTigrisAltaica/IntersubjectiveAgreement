@@ -5,6 +5,8 @@ This is the analysis code and dataset of Intersubjective Agreement (IA).
 
 Raw data available here: https://osf.io/7spxd/
 
+
+
 The following major preprocessing code is made by Zhao Hui Koh. https://github.com/zhaokoh/gist-generation-analysis
 
 1, Raw data --> psy4100_master_data.RData
@@ -16,6 +18,8 @@ The following major preprocessing code is made by Zhao Hui Koh. https://github.c
 4, ROC figures is made by analysis_intersubjectivity_AUC.Rmd
 
 5, All functions
+
+
 
 The following preprocessing and analysis code is made by Chuyin Zhang.
 
