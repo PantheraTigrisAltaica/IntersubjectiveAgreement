@@ -1,4 +1,5 @@
-# IntersubjectiveAgreement
+# Intersubjective Agreement
+
 Analysis of Intersubjective Agreement
 
 This is the analysis code and dataset of Intersubjective Agreement (IA).
