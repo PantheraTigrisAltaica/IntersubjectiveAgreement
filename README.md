@@ -10,7 +10,7 @@ Raw data available here: https://osf.io/7spxd/
 
 ## The following major preprocessing code is made by Zhao Hui Koh. https://github.com/zhaokoh/gist-generation-analysis
 
-1, Raw data --> psy4100_master_data.RData
+1, Raw data (csv files) --> psy4100_master_data.RData
 
 2, Spell check & text mining
 
