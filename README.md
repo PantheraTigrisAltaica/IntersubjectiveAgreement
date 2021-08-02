@@ -16,7 +16,7 @@ Raw data available here: https://osf.io/7spxd/
 
 3, IA across SOA is calculated by analysis_intersubjectivity_AUC.R
 
-4, ROC figures is made by analysis_intersubjectivity_AUC.Rmd
+4, ROC figures are made by analysis_intersubjectivity_AUC.Rmd
 
 5, All functions
 
