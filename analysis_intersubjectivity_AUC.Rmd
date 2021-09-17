@@ -80,35 +80,41 @@ for (img_index in 1:length(all_image_ids)) {
 ```{r, message=FALSE}
 
 all_img_type1auc <- data.table()
-target_img_id = 4047
+target_img_id = 2277
 
 original_img_df <- all_image_dfs[[which(all_image_ids == target_img_id)]]
 
 # Get the other image dfs and also filter duplicate/similar images with this target_img_id
 # duplicate_img_ids$img_id == target_img_id
-# duplicate_for_this_image <- duplicate_img_ids[mapply(`%in%`, target_img_id, duplicate_set)]$duplicate_set # could be empty
+duplicate_for_this_image <- duplicate_img_ids[mapply(`%in%`, target_img_id, duplicate_set)]$duplicate_set # could be empty
 
-all_other_image_dfs <- all_image_dfs[which(!all_image_ids %in% c(target_img_id, img_ids_to_exclude_in_baseline))]
-print(sprintf("Baseline size = %d", length(all_other_image_dfs)))
+if(target_img_id %in% duplicate_img_ids$img_id){
+  all_other_image_dfs <- all_image_dfs[which(!all_image_ids %in% c(target_img_id, duplicate_for_this_image[[1]]))]
+  } else
+  {all_other_image_dfs <- all_image_dfs[which(!all_image_ids %in% target_img_id)]}
+  print(sprintf("Baseline size = %d", length(all_other_image_dfs)))
+  
+#all_other_image_dfs <- all_image_dfs[which(!all_image_ids %in% c(target_img_id, img_ids_to_exclude_in_baseline))]
+#print(sprintf("Baseline size = %d", length(all_other_image_dfs)))
 
 # if (length(unlist(duplicate_for_this_image)) > 0) {
 #   print(sprintf("Image %s has duplicate(s): %s. After excluding them, the baseline size is: %d", target_img_id, paste(duplicate_for_this_image), length(all_other_image_dfs)))
 # }
 
 #for (target_soa in c(67, 133, 267)) {
-for (target_soa in c(133)) {
-  #img_df <- original_img_df[soa == target_soa, ]
-  img_df <- original_img_df
+for (target_soa in c(67)) {
+  img_df <- original_img_df[soa == target_soa, ]
+  #img_df <- original_img_df
   other_image_dfs <- vector(mode = "list", length = length(all_other_image_dfs))
   for (other_image_index in 1:length(all_other_image_dfs)) {
     other_image_df <- all_other_image_dfs[[other_image_index]]
-    #other_image_df_filter_soa <- other_image_df[soa == target_soa, ]
-    other_image_dfs[[other_image_index]] <- other_image_df
+    other_image_df_filter_soa <- other_image_df[soa == target_soa, ]
+    other_image_dfs[[other_image_index]] <- other_image_df_filter_soa
   }
   
   ## TEMPORARY ##
   
-  img_df <- img_df[stem_word == "observe", ]
+  img_df <- img_df[stem_word == "city", ]
   
   type1auc_df <- img_df[, .(type1auc = calculate_auc_img_sbj_word(img_df, other_image_dfs, target_img_id, as.String(stem_word), sbj_idx, soa, output_plot = TRUE, include_confidence = FALSE), 
                             type1auc_weighted = calculate_auc_img_sbj_word(img_df, other_image_dfs, target_img_id, as.String(stem_word), sbj_idx, soa, output_plot = FALSE, include_confidence = TRUE)), 
@@ -611,7 +617,7 @@ select_color_by_auc <- function(auc_value) {
 load('all_img_type1auc.RData')
 
 target_img_id <- 2277
-table_df <- all_img_type1auc[img_id == target_img_id, ][order(soa, sbj_idx, type1auc)]
+table_df <- all_img_type1auc %>% filter(img_id == target_img_id) %>% arrange(soa, sbj_idx, type1auc)
 img <- get_image_by_id(nishimoto_images_folder, target_img_id)
 img <- image_scale(img, "200")
 

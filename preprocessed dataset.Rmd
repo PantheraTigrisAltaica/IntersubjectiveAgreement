@@ -115,7 +115,7 @@ bottom_ia = head(img_ia %>% arrange(imgIA), 5)
 ```
 
 
-```{r 1-person rate}
+```{r proportion of rarely reported words}
 all_remove$remove[is.na(all_remove$remove)] = 0
 oneperson = all_remove %>% group_by(img_id) %>% summarise(total = length(unique(stem_word)), one = sum(remove))
 oneperson = oneperson %>% mutate(proportion = one/total)
@@ -128,7 +128,13 @@ img_ia = left_join(img_ia, oneperson %>% select(img_id, proportion), by = 'img_i
 ```
 
 
+```{r all responses}
+all_response = do.call(rbind.data.frame, all_image_dfs)
+all_response = all_response %>% select(-11, -12, -13)
+```
+
+
 ```{r save}
 save(all_after, all_df, bottom_ia, confidence_df, frequency, img_ia, 
-         master_df, top_ia, file = 'preprocessed.RData')
+         master_df, top_ia, all_response, file = 'preprocessed.RData')
 ```

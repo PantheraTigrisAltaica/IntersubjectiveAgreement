@@ -66,7 +66,7 @@ calculate_auc_img_sbj_word <- function(img_df, other_image_dfs, target_img_id, t
   
   all_plots <- list()
   all_agg_data <- data.table()
-  fix_no_other_participants <- 27
+  fix_no_other_participants <- 9
   
   hit_count_df <- img_df[stem_word == target_word & sbj_idx != target_subject_index, .(subject, sbj_idx, word, confidence, soa, stem_word, frequency)]
 
@@ -213,7 +213,7 @@ calculate_auc_img_sbj_word <- function(img_df, other_image_dfs, target_img_id, t
   fa_ui_cum_percentage <- round(c(calc_cumsum_percentage(fa_ui_percentage), 100), digits = 3)
   
   criterion=rev(c(0:fix_no_other_participants))
-  sig_df <- data.table(criterion=criterion, criterion_index=round(criterion/27, digits=3),
+  sig_df <- data.table(criterion=criterion, criterion_index=round(criterion/9, digits=3),
                        hit_count=hit_count, hit_percentage=hit_percentage, 
                        hit_cum_percentage=head(hit_cum_percentage,-1), fa_count=fa_count, fa_percentage=fa_percentage,
                        fa_cum_percentage=head(fa_cum_percentage, -1), hit_confidence=hit_confidence, fa_confidence=fa_confidence,
@@ -247,9 +247,9 @@ calculate_auc_img_sbj_word <- function(img_df, other_image_dfs, target_img_id, t
       geom_path(aes(x=criterion_index, y=fa_cum_percentage), colour="red", size=2) +
       geom_point(aes(x=criterion_index, y=fa_cum_percentage), colour="red", size=5) +
       scale_x_reverse(labels = percent) + 
-      xlab("Minimum % of people required") +
+      xlab("Percentage of Participants") +
       ylab("Cumulative Percentage") +
-      theme(axis.text=element_text(size=16))
+      theme(axis.text=element_text(size=20), axis.title.x = element_text(size = 25), axis.title.y = element_text(size = 25))
     
     roc_plt <- ggplot(roc, aes(x=fpr, y=tpr)) +
       geom_point(size=5) +
@@ -258,10 +258,10 @@ calculate_auc_img_sbj_word <- function(img_df, other_image_dfs, target_img_id, t
                   linetype="dashed", size=1.5)+
       scale_x_continuous(limits=c(0, 1)) +
       scale_y_continuous(limits=c(0, 1)) +
-      ylab("True positive rate (TPR)") +
-      xlab("False positive rate (FPR)") + 
+      ylab("Within-image proportion") +
+      xlab("Other-images proportion") + 
       ggtitle(sprintf("ROC Curve (subject index=%d, word=%s, type1auc = %.4f)", 1, target_word, auc)) +
-      theme(axis.text=element_text(size=16))
+      theme(axis.text=element_text(size=20), axis.title.x = element_text(size = 25), axis.title.y = element_text(size = 25))
     
     if (include_confidence) {
       table_cells <- rbind(sig_df$hit_count, sig_df$fa_count,

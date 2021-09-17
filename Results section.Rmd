@@ -10,6 +10,9 @@ library("scales")
 library(dplyr)
 library(tidyverse)
 library(ggplot2)
+library('lme4')
+library('sjstats')
+library(lmtest)
 load('preprocessed.RData')
 ```
 
@@ -22,9 +25,25 @@ frequency %>% filter(wf != 1) %>% ggplot(mapping = aes(x = wf, y = IA)) +
   theme_bw() +
   geom_boxplot() +
   labs(
-    y = "Mean IA",
+    y = "Word IA",
     x = "Word frequency"
-  )
+  ) +
+  theme(axis.title.x = element_text(size = 15), axis.title.y = element_text(size = 15))
+
+frequency$wf = as.numeric(frequency$wf)
+frequency %>% filter(wf != 1) %>% ggplot(mapping = aes(x = wf)) +
+  theme_bw() +
+  geom_histogram(bins = 29) +
+  scale_x_continuous(breaks = seq(2, 30, 1)) +
+  theme(axis.title.y = element_text(size = 15))
+
+frequency %>% filter(wf != 1) %>% ggplot(mapping = aes(x = IA)) +
+  theme_bw() +
+  geom_histogram() +
+  scale_x_continuous(breaks = seq(1, 0.25, -0.25)) +
+  scale_x_reverse() +
+  theme(axis.title.x = element_text(size = 20), axis.title.y = element_text(size = 20), axis.text = element_text(size = 20))
+  
 ```
 
 
@@ -66,6 +85,29 @@ img_ia %>% ggplot(mapping = aes(x = conf)) +
   theme(axis.title.x = element_text(size = 20), axis.title.y = element_text(size = 20), axis.text = element_text(size = 20))
 ```
 
+```{r distribution of confidence}
+all_after %>% ggplot(mapping = aes(x = conf)) +
+  theme_bw() +
+  labs(x = 'Mean confidence for each word') +
+  geom_histogram() +
+  theme(axis.title.x = element_text(size = 30), axis.title.y = element_text(size = 30), axis.text = element_text(size = 20))
+
+all_after %>% ggplot(mapping = aes(x = IA)) +
+  theme_bw() +
+  labs(x = 'Word IA') +
+  geom_histogram() +
+  scale_x_reverse() +
+  theme(axis.title.x = element_text(size = 30), axis.title.y = element_text(size = 30), axis.text = element_text(size = 20))
+
+all_after %>% ggplot(mapping = aes(x = conf, y = IA)) +
+  theme_bw() +
+  labs(y = 'Word IA', x = 'Mean confidence for each word') +
+  geom_jitter() +
+  geom_smooth(method = 'lm') +
+  theme(axis.title.x = element_text(size = 20), axis.title.y = element_text(size = 20), axis.text = element_text(size = 20))
+
+cor.test(all_after$IA, all_after$conf)
+```
 
 ```{r correlations}
 #freq
@@ -215,8 +257,8 @@ dup_results %>% ggplot(mapping = aes(x = SSE, color = type)) +
 
 #start# comparisons between SOA
 ```{r mean number of response words with conf > 1}
-detach("package:Rmisc", unload = TRUE)
-detach("package:plyr", unload = TRUE)
+#detach("package:Rmisc", unload = TRUE)
+#detach("package:plyr", unload = TRUE)
 library('dplyr')
 remove_conf1 = master_df %>% filter(confidence != 1)
 participants = remove_conf1 %>% group_by(subject, img_id) %>% summarise(n = n(), soa = unique(soa))
@@ -246,6 +288,10 @@ number_soa_image %>% ggplot(mapping = aes(x = mean, color = soa, fill = soa)) +
 ```{r remove conf = 1}
 load(file = "IA_perSOA.RData")
 IA_perSOA_after = IA_perSOA %>% filter(word_count != 1)
+
+temp_IA = IA_perSOA_after %>% select(-5,-6)
+all_response = left_join(all_response, temp_IA, by = c('img_id','soa','stem_word'))
+all_response = all_response %>% filter(!is.na(avg_type1auc))
 ```
 
 
@@ -319,3 +365,60 @@ result %>% ggplot(mapping = aes(x = slope.ia)) +
 
 cor.test(result$imgIA, result$slope.ia)
 ```
+
+
+```{r multi-level regression}
+all_response$soa = as.character(all_response$soa)
+all_response$soa = as.numeric(all_response$soa)
+
+multi_model = lmer("avg_type1auc ~ 1 + soa + confidence + (1|subject) + (1|img_id)", data = all_response, control = lmerControl(optimizer="bobyqa"), REML = FALSE)
+summary(multi_model)
+performance::icc(multi_model)
+
+multi_model_interaction = lmer("avg_type1auc ~ 1 + soa + confidence + soa * confidence + (1|subject) + (1|img_id)", data = all_response, control = lmerControl(optimizer="bobyqa"), REML = FALSE)
+summary(multi_model_interaction)
+performance::icc(multi_model_interaction)
+
+anova(multi_model, multi_model_interaction)
+lrtest(multi_model, multi_model_interaction)
+
+SOA67 = all_response %>% filter(soa == 67)
+cor.test(SOA67$confidence, SOA67$avg_type1auc)
+```
+
+
+```{r figure}
+all_response$soa = as.factor(all_response$soa)
+all_response$confidence = as.numeric(all_response$confidence)
+
+all_response %>% filter(soa == 267) %>% ggplot(mapping = aes(x = confidence)) +
+  theme_bw() +
+  geom_histogram(position = 'dodge',bins = 13) +
+  labs(x = 'Confidence') +
+  theme(axis.title.x = element_text(size = 30), axis.title.y = element_text(size = 30), axis.text = element_text(size = 20))
+
+all_response %>% filter(soa == 267) %>% ggplot(mapping = aes(x = avg_type1auc)) +
+  theme_bw() +
+  geom_histogram() +
+  labs(x = 'Word IA') +
+  scale_x_reverse() +
+  theme(axis.title.x = element_text(size = 30), axis.title.y = element_text(size = 30), axis.text = element_text(size = 20))
+
+all_response %>% ggplot(mapping = aes(x = confidence, y = avg_type1auc, fill = soa, color = soa)) +
+  theme_bw() +
+  geom_jitter(alpha = 0.4) +
+  geom_smooth(method = 'lm') +
+  facet_wrap(~soa) +
+  labs(x = 'Confidence', y = "Word IA") +
+  theme(axis.title.x = element_text(size = 30), axis.title.y = element_text(size = 30), axis.text = element_text(size = 20))
+
+all_response %>% filter(soa == 267) %>% ggplot(mapping = aes(x = confidence, y = avg_type1auc)) +
+  theme_bw() +
+  geom_jitter(alpha = 0.4) +
+  geom_smooth(method = 'lm', color = 'blue') +
+  labs(x = 'Confidence', y = "Word IA") +
+  theme(axis.title.x = element_text(size = 30), axis.title.y = element_text(size = 30), axis.text = element_text(size = 20))
+```
+
+
+
