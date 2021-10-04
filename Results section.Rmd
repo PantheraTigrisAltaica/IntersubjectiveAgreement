@@ -28,7 +28,7 @@ frequency %>% filter(wf != 1) %>% ggplot(mapping = aes(x = wf, y = IA)) +
     y = "Word IA",
     x = "Word frequency"
   ) +
-  theme(axis.title.x = element_text(size = 15), axis.title.y = element_text(size = 15))
+  theme(axis.title.x = element_text(size = 15, family = 'Times'), axis.title.y = element_text(size = 15, family = 'Times'))
 
 frequency$wf = as.numeric(frequency$wf)
 frequency %>% filter(wf != 1) %>% ggplot(mapping = aes(x = wf)) +
@@ -42,6 +42,7 @@ frequency %>% filter(wf != 1) %>% ggplot(mapping = aes(x = IA)) +
   geom_histogram() +
   scale_x_continuous(breaks = seq(1, 0.25, -0.25)) +
   scale_x_reverse() +
+  labs(y = 'Count') +
   theme(axis.title.x = element_text(size = 20), axis.title.y = element_text(size = 20), axis.text = element_text(size = 20))
   
 ```
@@ -85,16 +86,17 @@ img_ia %>% ggplot(mapping = aes(x = conf)) +
   theme(axis.title.x = element_text(size = 20), axis.title.y = element_text(size = 20), axis.text = element_text(size = 20))
 ```
 
+
 ```{r distribution of confidence}
 all_after %>% ggplot(mapping = aes(x = conf)) +
   theme_bw() +
-  labs(x = 'Mean confidence for each word') +
+  labs(x = 'Mean confidence for each word', y = 'Count') +
   geom_histogram() +
   theme(axis.title.x = element_text(size = 30), axis.title.y = element_text(size = 30), axis.text = element_text(size = 20))
 
 all_after %>% ggplot(mapping = aes(x = IA)) +
   theme_bw() +
-  labs(x = 'Word IA') +
+  labs(x = 'Word IA', y = 'Count') +
   geom_histogram() +
   scale_x_reverse() +
   theme(axis.title.x = element_text(size = 30), axis.title.y = element_text(size = 30), axis.text = element_text(size = 20))
@@ -103,7 +105,7 @@ all_after %>% ggplot(mapping = aes(x = conf, y = IA)) +
   theme_bw() +
   labs(y = 'Word IA', x = 'Mean confidence for each word') +
   geom_jitter() +
-  geom_smooth(method = 'lm') +
+  geom_smooth(method = 'lm', color = 'yellow') +
   theme(axis.title.x = element_text(size = 20), axis.title.y = element_text(size = 20), axis.text = element_text(size = 20))
 
 cor.test(all_after$IA, all_after$conf)
@@ -371,19 +373,51 @@ cor.test(result$imgIA, result$slope.ia)
 all_response$soa = as.character(all_response$soa)
 all_response$soa = as.numeric(all_response$soa)
 
-multi_model = lmer("avg_type1auc ~ 1 + soa + confidence + (1|subject) + (1|img_id)", data = all_response, control = lmerControl(optimizer="bobyqa"), REML = FALSE)
-summary(multi_model)
-performance::icc(multi_model)
+model1 = lmer("avg_type1auc ~ 1 + (1|subject) + (1|img_id)", data = all_response, control = lmerControl(optimizer="bobyqa"), REML = FALSE)
+summary(model1)
+performance::icc(model1)
 
-multi_model_interaction = lmer("avg_type1auc ~ 1 + soa + confidence + soa * confidence + (1|subject) + (1|img_id)", data = all_response, control = lmerControl(optimizer="bobyqa"), REML = FALSE)
-summary(multi_model_interaction)
-performance::icc(multi_model_interaction)
+model2 = lmer("avg_type1auc ~ 1 + confidence + (1|subject) + (1|img_id)", data = all_response, control = lmerControl(optimizer="bobyqa"), REML = FALSE)
+summary(model2)
+performance::icc(model2)
+  
+model3 = lmer("avg_type1auc ~ 1 + soa + confidence + (1|subject) + (1|img_id)", data = all_response, control = lmerControl(optimizer="bobyqa"), REML = FALSE)
+summary(model3)
+performance::icc(model3)
 
-anova(multi_model, multi_model_interaction)
-lrtest(multi_model, multi_model_interaction)
+model4 = lmer("avg_type1auc ~ 1 + soa + confidence + soa * confidence + (1|subject) + (1|img_id)", data = all_response, control = lmerControl(optimizer="bobyqa"), REML = FALSE)
+summary(model4)
+performance::icc(model4)
+
+anova(model1, model2)
+lrtest(model1, model2)
+anova(model2, model3)
+lrtest(model2, model3)
+anova(model3, model4)
+lrtest(model3, model4)
+AIC(model1, model2, model3, model4)
+BIC(model1, model2, model3, model4)
 
 SOA67 = all_response %>% filter(soa == 67)
 cor.test(SOA67$confidence, SOA67$avg_type1auc)
+```
+
+
+```{r AICBIC}
+temp1 = AIC(model1, model2, model3, model4)
+colnames(temp1) = c('df', 'value')
+temp1$model = c('Model 1', 'Model 2', 'Model 3', 'Model 4')
+temp1$Method = 'AIC'
+temp2 = BIC(model1, model2, model3, model4)
+colnames(temp2) = c('df', 'value')
+temp2$model = c('Model 1', 'Model 2', 'Model 3', 'Model 4')
+temp2$Method = 'BIC'
+selection = rbind(temp1, temp2)
+selection %>% ggplot(mapping = aes(x = model, y = value, fill = Method)) +
+  theme_bw() +
+  geom_col(position = 'dodge') + 
+  coord_cartesian(ylim = c(-65000, -50000)) +
+  theme(axis.title.x = element_text(size = 30), axis.title.y = element_text(size = 30), axis.text = element_text(size = 20), legend.text = element_text(size = 20), legend.title = element_text(size = 20))
 ```
 
 
@@ -415,7 +449,7 @@ all_response %>% ggplot(mapping = aes(x = confidence, y = avg_type1auc, fill = s
 all_response %>% filter(soa == 267) %>% ggplot(mapping = aes(x = confidence, y = avg_type1auc)) +
   theme_bw() +
   geom_jitter(alpha = 0.4) +
-  geom_smooth(method = 'lm', color = 'blue') +
+  geom_smooth(method = 'lm', color = 'blue', size = 2) +
   labs(x = 'Confidence', y = "Word IA") +
   theme(axis.title.x = element_text(size = 30), axis.title.y = element_text(size = 30), axis.text = element_text(size = 20))
 ```
