@@ -14,6 +14,21 @@ library('lme4')
 library('sjstats')
 library(lmtest)
 load('preprocessed.RData')
+
+artificial = c(9999001, 9999002, 9999003, 9999004, 9999005, 9999006, 9999007, 9999008)
+```
+
+
+```{r sequence effect}
+all_response$order[seq(5,63000,5)] = 5
+temp = seq(1,63000,5)
+all_response$order[temp] = 1
+temp = seq(2,63000,5)
+all_response$order[temp] = 2
+temp = seq(3,63000,5)
+all_response$order[temp] = 3
+temp = seq(4,63000,5)
+all_response$order[temp] = 4
 ```
 
 
@@ -108,6 +123,7 @@ all_after %>% ggplot(mapping = aes(x = conf, y = IA)) +
   geom_smooth(method = 'lm', color = 'yellow') +
   theme(axis.title.x = element_text(size = 20), axis.title.y = element_text(size = 20), axis.text = element_text(size = 20))
 
+#all_after = all_after %>% filter(!img_id %in% artificial)
 cor.test(all_after$IA, all_after$conf)
 ```
 
@@ -136,6 +152,7 @@ img_ia %>% ggplot(mapping = aes(x = imgIA, y = proportion)) +
   geom_smooth(method = 'lm') +
   theme(axis.title.x = element_text(size = 30), axis.title.y = element_text(size = 30), axis.text = element_text(size = 20))
 
+#img_ia = img_ia %>% filter(!img_id %in% artificial)
 #correlation tests
 cor.test(img_ia$imgIA, img_ia$frequency)
 cor.test(img_ia$imgIA, img_ia$proportion)
@@ -291,14 +308,17 @@ number_soa_image %>% ggplot(mapping = aes(x = mean, color = soa, fill = soa)) +
 load(file = "IA_perSOA.RData")
 IA_perSOA_after = IA_perSOA %>% filter(word_count != 1)
 
-temp_IA = IA_perSOA_after %>% select(-5,-6)
+temp_IA = IA_perSOA_after %>% dplyr::select(-5,-6)
 all_response = left_join(all_response, temp_IA, by = c('img_id','soa','stem_word'))
 all_response = all_response %>% filter(!is.na(avg_type1auc))
 ```
 
 
 ```{r ANOVA}
-img_ia_perSOA = IA_perSOA_after %>% group_by(img_id, soa) %>% summarise(imgIA = mean(avg_type1auc), freq = mean(word_count), conf = sum(word_count * mean_confidence)/sum(word_count))
+library(car)
+library(lsr)
+img_ia_perSOA = IA_perSOA_after %>% group_by(img_id, soa) %>% summarise(imgIA = mean(avg_type1auc), freq = mean(word_count), conf = sum(word_count * mean_confidence)/sum(word_count), .groups = 'drop')
+#img_ia_perSOA = img_ia_perSOA %>% filter(!img_id %in% artificial)
 
 #freq
 freqmodel = aov(freq ~ soa, data = img_ia_perSOA)
@@ -365,6 +385,7 @@ result %>% ggplot(mapping = aes(x = slope.ia)) +
   labs(x = 'Slope') +
   theme(axis.title.x = element_text(size = 30), axis.title.y = element_text(size = 30), axis.text = element_text(size = 20))
 
+#result = result %>% filter(!img_id %in% artificial)
 cor.test(result$imgIA, result$slope.ia)
 ```
 
@@ -372,6 +393,7 @@ cor.test(result$imgIA, result$slope.ia)
 ```{r multi-level regression}
 all_response$soa = as.character(all_response$soa)
 all_response$soa = as.numeric(all_response$soa)
+#all_response = all_response %>% filter(!img_id %in% artificial)
 
 model1 = lmer("avg_type1auc ~ 1 + (1|subject) + (1|img_id)", data = all_response, control = lmerControl(optimizer="bobyqa"), REML = FALSE)
 summary(model1)
@@ -454,5 +476,322 @@ all_response %>% filter(soa == 267) %>% ggplot(mapping = aes(x = confidence, y =
   theme(axis.title.x = element_text(size = 30), axis.title.y = element_text(size = 30), axis.text = element_text(size = 20))
 ```
 
+----------------------------------------------------------------------------------
+
+#reply to reviewers' concerns
+#sequence effect
+```{r sequence effect}
+# temp = all_df %>% dplyr::select(1,2,3,4)
+# X_sequence = left_join(all_response, temp, by = c('img_id', 'soa', 'stem_word'))
+# cor.test(X_sequence$order, X_sequence$confidence)
+# cor.test(X_sequence$order, X_sequence$avg_type1auc)
+all_response$confidence = as.numeric(all_response$confidence)
+all_response$order = as.numeric(all_response$order)
+all_response$soa = as.numeric(all_response$soa)
+cor.test(all_response$order, all_response$confidence)
+cor.test(all_response$order, all_response$avg_type1auc)
+
+model = lm(avg_type1auc ~ order + soa + order:soa, data = all_response)
+summary(model)
+
+all_response$order = as.factor(all_response$order)
+all_response$soa = as.factor(all_response$soa)
+all_response %>% ggplot(mapping = aes(x = order, y = avg_type1auc, fill = soa)) +
+  theme_bw() +
+  geom_boxplot() +
+  geom_smooth(method = 'lm') +
+  labs(x = 'Report sequence', y = 'Word IA') +
+  theme(axis.title.x = element_text(size = 30), axis.title.y = element_text(size = 30), axis.text = element_text(size = 20))
+
+all_response %>% ggplot(mapping = aes(x = order, y = confidence, fill = soa)) +
+  theme_bw() +
+  geom_boxplot() +
+  geom_smooth(method = 'lm') +
+  labs(x = 'Report sequence', y = 'Confidence') +
+  theme(axis.title.x = element_text(size = 30), axis.title.y = element_text(size = 30), axis.text = element_text(size = 20))
+```
+
+
+```{r dont know}
+dontknow = all_response %>% group_by(order, confidence) %>% summarise(n = n(), .groups = 'drop')
+temp = dontknow %>% group_by(order) %>% summarise(sum = sum(n), .groups = 'drop')
+dontknow = left_join(dontknow, temp, by = 'order')
+dontknow = dontknow %>% mutate(percent = n/sum) %>% filter(confidence == 1)
+
+dontknow %>% ggplot(mapping = aes(x = order, y = percent)) +
+  theme_bw() +
+  geom_col() +
+  labs(x = 'Report sequence', y = '% of dont know') +
+  theme(axis.title.x = element_text(size = 30), axis.title.y = element_text(size = 30), axis.text = element_text(size = 20))
+```
+
+
+```{r sperling}
+sperling = all_response %>% filter(img_id == 9999001 | img_id == 9999002)
+sperling = sperling %>% mutate(length = nchar(stem_word))
+# specific = sperling %>% mutate(length = nchar(stem_word)) %>% filter(length == 1)
+# generic = sperling %>% mutate(length = nchar(stem_word)) %>% filter(length != 1)
+sperling$type[sperling$length == 1] = 'specific'
+sperling$type[sperling$length > 1] = 'generic'
+# specific_sum = length(specific$length)
+# generic_sum = length(generic$length)
+
+# specific = specific %>% group_by(order) %>% summarise(n = n(), .groups = 'drop') %>% mutate(percent = n/specific_sum)
+# generic = generic %>% group_by(order) %>% summarise(n = n(), .groups = 'drop') %>% mutate(percent = n/generic_sum)
+specific = length(sperling$type[sperling$type == 'specific'])
+generic = length(sperling$type[sperling$type == 'generic'])
+
+sperling_response = sperling %>% group_by(order, type) %>% summarise(n = n(), .groups = 'drop')
+sperling_response_1 = sperling_response %>% filter(type == 'specific') %>% mutate(percent = n/specific)
+sperling_response_2 = sperling_response %>% filter(type == 'generic') %>% mutate(percent = n/generic)
+sperling_response = rbind(sperling_response_1, sperling_response_2)
+
+sperling_response %>% ggplot(mapping = aes(x = order, y = percent, fill = type)) +
+  theme_bw() +
+  geom_col(position = 'dodge') +
+  labs(x = 'Report sequence', y = '% of responses') +
+  theme(axis.title.x = element_text(size = 30), axis.title.y = element_text(size = 30), axis.text = element_text(size = 20))
+
+table = table(sperling$type, sperling$order)
+chisq.test(table)
+# specific %>% ggplot(mapping = aes(x = order, y = percent)) +
+#   theme_bw() +
+#   geom_col() +
+#   labs(x = 'Report sequence', y = '%', title = 'specific words') +
+#   coord_cartesian(ylim = c(0,0.3)) +
+#   theme(axis.title.x = element_text(size = 30), axis.title.y = element_text(size = 30), axis.text = element_text(size = 20))
+# 
+# generic %>% ggplot(mapping = aes(x = order, y = percent)) +
+#   theme_bw() +
+#   geom_col() +
+#   labs(x = 'Report sequence', y = '%', title = 'generic words') +
+#   coord_cartesian(ylim = c(0,0.3)) +
+#   theme(axis.title.x = element_text(size = 30), axis.title.y = element_text(size = 30), axis.text = element_text(size = 20))
+
+sperling$order = as.numeric(sperling$order)
+modelS = lmer("order ~ 1 + type + (1|subject)", data = sperling, control = lmerControl(optimizer="bobyqa"), REML = FALSE)
+summary(modelS)
+performance::icc(modelS)
+```
+
+
+#relationship between IA and SOA
+```{r IA ~ SOA}
+all_response$confidence = as.factor(all_response$confidence)
+
+all_response %>% ggplot(mapping = aes(x = confidence, y = avg_type1auc, fill = soa)) +
+  theme_bw() +
+  geom_boxplot() +
+  labs(x = 'Confidence', y = "Word IA") +
+  theme(axis.title.x = element_text(size = 30), axis.title.y = element_text(size = 30), axis.text = element_text(size = 20))
+```
+
+
+```{r without conf = 1}
+all_response = all_response %>% filter(confidence != 1)
+model = aov(avg_type1auc ~ soa, data = all_response)
+summary(model)
+posthocPairwiseT(x = model, p.adjust.method = 'holm')
+IAresidual = model$residuals
+#shapiro.test(x=IAresidual)
+leveneTest(avg_type1auc ~ soa, data = all_response)
+oneway.test(avg_type1auc ~ soa, data = all_response)
+kruskal.test(avg_type1auc ~ soa, data = all_response)
+
+```
+
+
+
+#motivation of IA
+```{r example AUC by confidence}
+target = all_response %>% filter(img_id == 2277 & stem_word == 'eiffel-tower')
+other = all_response %>% filter(img_id != 52277 & stem_word == 'eiffel-tower')
+
+n_present = length(target$confidence)
+n_absent = length(other$confidence)
+
+roc = data.frame(criterion = numeric(1), hit = numeric(1), fa = numeric(1), stringsAsFactors = FALSE)
+c_list = c(10, 5, 4, 3, 2, 1, 0)
+for (i in c_list){
+  temp_hit = target %>% filter(confidence >= i)
+  hit = length(temp_hit$confidence)
+  temp_fa = other %>% filter(confidence >= i)
+  fa = length(temp_fa$confidence)
+  if(n_absent == 0){fa_cum = 0} else{fa_cum = fa/(419*30)}
+  hit_cum = hit/30
+  if(i == 0){
+    fa_cum = 1
+    hit_cum = 1
+    }  
+  roc = rbind(roc, c(i, hit_cum, fa_cum))
+}
+
+roc = roc[-1,]
+roc_df <- transform(roc, dFPR = c(diff(fa), 0), dTPR = c(diff(hit), 0))
+auc=sum((roc_df$hit*roc_df$dFPR)) + sum(sum(roc_df$dTPR*roc_df$dFPR)/2)
+
+print(auc)
+
+roc_df %>% ggplot(mapping = aes(x = fa, y = hit)) +
+  theme_bw() +
+  geom_point(size=5) +
+  geom_path(size=2) +
+  geom_abline(intercept = 0, slope = 1, color="red", linetype="dashed", size=1.5)+
+  scale_x_continuous(limits=c(0, 1)) +
+  scale_y_continuous(limits=c(0, 1)) +
+  ylab("Hit rate") +
+  xlab("False alarm rate") +
+  theme(axis.text=element_text(size=20), axis.title.x = element_text(size = 20), axis.title.y = element_text(size = 20)) +
+  coord_fixed(ratio = 1) 
+
+roc = roc[-1,]
+roc %>% ggplot() +
+  theme_bw() +
+      geom_path(aes(x=criterion, y=hit), colour="green", size=2) +
+      geom_point(aes(x=criterion, y=hit), colour="green", size=5) +
+      geom_path(aes(x=criterion, y=fa), colour="red", size=2) +
+      geom_point(aes(x=criterion, y=fa), colour="red", size=5) +
+      scale_x_continuous(limits=c(1, 5)) +
+      scale_y_continuous(limits=c(0, 1)) +
+      scale_x_reverse() +
+      #scale_x_reverse(labels = percent) + 
+      xlab("Confidence") +
+      ylab("Cumulative Percentage") +
+      theme(axis.text=element_text(size=20), axis.title.x = element_text(size = 25), axis.title.y = element_text(size = 25)) +
+      coord_fixed(ratio = 5) 
+    
+```
+
+
+```{r confidence & ratio}
+load(file = "Confidence_IA.RData")
+
+cor.test(Confidence_IA$IA, Confidence_IA$auc)
+cor.test(Confidence_IA$IA, Confidence_IA$ratio)
+
+Confidence_IA %>% ggplot(mapping = aes(x = IA, y = auc)) +
+  theme_bw() +
+  geom_jitter() +
+  geom_smooth(method = 'lm') +
+  scale_x_continuous(limits=c(0, 1)) +
+  scale_y_continuous(limits=c(0, 1)) +
+  coord_fixed(ratio = 1) +
+  geom_abline(intercept = 0, slope = 1, color = 'red') +
+  labs(x = 'Word IA', y = 'AUC by confidence') +
+  theme(axis.title.x = element_text(size = 30), axis.title.y = element_text(size = 30), axis.text = element_text(size = 20))
+
+# Confidence_IA %>% ggplot(mapping = aes(x = IA, y = ratio)) +
+#   theme_bw() +
+#   geom_jitter() +
+#   geom_smooth(method = 'lm') +
+#   labs(x = 'Word IA', y = 'simple ratio of target/all') +
+#   theme(axis.title.x = element_text(size = 30), axis.title.y = element_text(size = 30), axis.text = element_text(size = 20))
+
+Confidence_IA %>% ggplot(mapping = aes(x = ratio)) +
+  theme_bw() +
+  geom_histogram() +
+  labs(x = 'Ratio1') +
+  theme(axis.title.x = element_text(size = 30), axis.title.y = element_text(size = 30), axis.text = element_text(size = 20))
+
+Confidence_IA %>% ggplot(mapping = aes(x = auc, y = wf)) +
+  theme_bw() +
+  geom_jitter() +
+  geom_smooth(method = 'lm') +
+  labs(x = 'AUC by confidence', y = 'Report frequency') +
+  scale_x_continuous(limits=c(0.4, 1)) +
+  theme(axis.title.x = element_text(size = 30), axis.title.y = element_text(size = 30), axis.text = element_text(size = 20))
+
+Confidence_IA %>% ggplot(mapping = aes(x = auc)) +
+  theme_bw() +
+  geom_histogram() +
+  labs(x = 'AUC by confidence') +
+  scale_x_continuous(limits=c(0.4, 1)) +
+  theme(axis.title.x = element_text(size = 30), axis.title.y = element_text(size = 30), axis.text = element_text(size = 20))
+
+# Confidence_IA %>% filter(wf != 1) %>% ggplot(mapping = aes(x = IA, y = auc)) +
+#   theme_bw() +
+#   geom_jitter() +
+#   geom_smooth(method = 'lm') +
+#   labs(x = 'Word IA', y = 'AUC by confidence', title = 'Without rarely reported words') +
+#   theme(axis.title.x = element_text(size = 30), axis.title.y = element_text(size = 30), axis.text = element_text(size = 20))
+
+```
+
+
+#Sum IA
+```{r sum IA}
+ia_sum = all_after %>% group_by(img_id) %>% summarise(sumIA = sum(IA), imgIA = mean(IA), n = n(), .groups = 'drop')
+
+cor.test(ia_sum$sumIA, ia_sum$imgIA)
+
+ia_sum$n = as.factor(ia_sum$n)
+
+ia_sum %>% ggplot(mapping = aes(x = imgIA, y = sumIA, color = n)) +
+  theme_bw() +
+  geom_point() +
+  geom_smooth(method = 'lm') +
+  labs(x = 'Image IA', y = 'Sum IA', color = '# of words') +
+  theme(axis.title.x = element_text(size = 30), axis.title.y = element_text(size = 30), axis.text = element_text(size = 20)) +
+  theme(legend.key.size = unit(0.45,'cm'))
+```
+
+
+```{r display images}
+source('function-image_utilities.R')
+ia_sum = ia_sum %>% arrange(sumIA)
+ia_sum$sumIA = round(ia_sum$sumIA, 2)
+ia_sum$imgIA = round(ia_sum$imgIA, 2)
+gimp <- ggplot(data.table(x=0:16, y=0:16), aes(x=x, y=y)) +
+  scale_x_continuous(limits=c(0, 9.5)) +
+  scale_y_continuous(limits=c(0, 16)) +
+  #xlim(0, 3) + ylim(0, 54) +
+  theme(axis.line=element_blank(),axis.text.x=element_blank(),
+          axis.text.y=element_blank(),axis.ticks = element_blank(),axis.title.x=element_blank(),axis.title.y=element_blank(),
+          panel.grid.major=element_blank(),panel.grid.minor=element_blank(),
+        panel.background = element_blank())+
+        coord_fixed(ratio = 1)
+nishimoto_images_folder = './shinji-images/'
+posx = 0
+posy = 16
+k = 0
+for (i in ia_sum$img_id[1:84]) {
+  print(i)
+    gimp <- gimp + annotation_raster(image_scale(get_image_by_id(nishimoto_images_folder, i), "200"), ymin = posy, ymax=posy - 0.9, xmin=posx, xmax=posx + 1.6) +
+      ggplot2::annotate("text", x=posx + 0.8, y = posy - 1, label=paste0(as.character(ia_sum$sumIA[ia_sum$img_id == i]), " (", as.character(ia_sum$imgIA[ia_sum$img_id == i]), ")"), size = 5)
+    posx = posx + 1.61
+    k = k + 1
+    if(k == 6){
+      posy = posy - 1.1
+      posx = 0
+      k = 0
+    }
+  }
+  
+  ggsave(gimp, height = 16, width = 10, filename = "2.png", limitsize = FALSE) 
+```
+
+
+--------------------------------------------------------
+
+#no longer relevant
+```{r}
+roc = data.frame(hit = c(rep(0,18),rep(1,10)))
+roc$fa = c(rep(0,18),rep(10/419,9),1)
+roc_df <- transform(roc, dFPR = c(diff(fa), 0), dTPR = c(diff(hit), 0))
+auc=sum((roc_df$hit*roc_df$dFPR)) + sum(sum(roc_df$dTPR*roc_df$dFPR)/2)
+auc
+
+all_words = all_after %>% group_by(stem_word) %>% summarise(word_ia = mean(IA), .groups = 'drop')
+```
+
+
+```{r}
+
+```
+
+
+```{r}
+
+```
 
 
