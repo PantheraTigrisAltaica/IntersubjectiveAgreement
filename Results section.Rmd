@@ -11,7 +11,7 @@ library(dplyr)
 library(tidyverse)
 library(ggplot2)
 library('lme4')
-library('sjstats')
+#library('sjstats')
 library(lmtest)
 load('preprocessed.RData')
 
@@ -41,7 +41,7 @@ frequency %>% filter(wf != 1) %>% ggplot(mapping = aes(x = wf, y = IA)) +
   geom_boxplot() +
   labs(
     y = "Word IA",
-    x = "Word frequency"
+    x = "Report frequency"
   ) +
   theme(axis.title.x = element_text(size = 15, family = 'Times'), axis.title.y = element_text(size = 15, family = 'Times'))
 
@@ -126,6 +126,7 @@ all_after %>% ggplot(mapping = aes(x = conf, y = IA)) +
 #all_after = all_after %>% filter(!img_id %in% artificial)
 cor.test(all_after$IA, all_after$conf)
 ```
+
 
 ```{r correlations}
 #freq
@@ -314,6 +315,20 @@ all_response = all_response %>% filter(!is.na(avg_type1auc))
 ```
 
 
+```{r additional selection}
+#some participants gave repetitive responses under the same image
+temp = all_response %>% filter(avg_type1auc <= 0.5)
+all_response = all_response %>% filter(avg_type1auc > 0.5)
+
+#also remove from all_after
+temp = temp %>% group_by(img_id, soa, stem_word) %>% summarise(n = n(), .groups = 'drop')
+temp = temp %>% group_by(img_id, stem_word) %>% summarise(n = n(), .groups = 'drop')
+temp = temp %>% filter(n == 1)
+all_after = left_join(all_after, temp, by = c('img_id', 'stem_word'))
+all_after = all_after %>% filter(is.na(n) | IA > 0.5) %>% select(-n)
+```
+
+
 ```{r ANOVA}
 library(car)
 library(lsr)
@@ -422,6 +437,10 @@ BIC(model1, model2, model3, model4)
 
 SOA67 = all_response %>% filter(soa == 67)
 cor.test(SOA67$confidence, SOA67$avg_type1auc)
+SOA133 = all_response %>% filter(soa == 133)
+cor.test(SOA133$confidence, SOA133$avg_type1auc)
+SOA267 = all_response %>% filter(soa == 267)
+cor.test(SOA267$confidence, SOA267$avg_type1auc)
 ```
 
 
@@ -438,7 +457,7 @@ selection = rbind(temp1, temp2)
 selection %>% ggplot(mapping = aes(x = model, y = value, fill = Method)) +
   theme_bw() +
   geom_col(position = 'dodge') + 
-  coord_cartesian(ylim = c(-65000, -50000)) +
+  coord_cartesian(ylim = c(-80000, -75000)) +
   theme(axis.title.x = element_text(size = 30), axis.title.y = element_text(size = 30), axis.text = element_text(size = 20), legend.text = element_text(size = 20), legend.title = element_text(size = 20))
 ```
 
@@ -472,6 +491,12 @@ all_response %>% filter(soa == 267) %>% ggplot(mapping = aes(x = confidence, y =
   theme_bw() +
   geom_jitter(alpha = 0.4) +
   geom_smooth(method = 'lm', color = 'blue', size = 2) +
+  labs(x = 'Confidence', y = "Word IA") +
+  theme(axis.title.x = element_text(size = 30), axis.title.y = element_text(size = 30), axis.text = element_text(size = 20))
+
+all_response %>% ggplot(mapping = aes(x = as.factor(confidence), y = avg_type1auc, fill = soa)) +
+  theme_bw() +
+  geom_boxplot() +
   labs(x = 'Confidence', y = "Word IA") +
   theme(axis.title.x = element_text(size = 30), axis.title.y = element_text(size = 30), axis.text = element_text(size = 20))
 ```
@@ -736,6 +761,41 @@ ia_sum %>% ggplot(mapping = aes(x = imgIA, y = sumIA, color = n)) +
 ```
 
 
+```{r sum IA}
+ia_sum_soa = IA_perSOA_after %>% group_by(img_id, soa) %>% summarise(sumIA = sum(avg_type1auc), imgIA = mean(avg_type1auc), n = n(), conf = mean(mean_confidence), .groups = 'drop')
+
+ia_sum_soa$soa = as.factor(ia_sum_soa$soa)
+
+ia_sum_soa %>% ggplot(mapping = aes(x = soa, y = sumIA)) +
+  theme_bw() +
+  geom_boxplot() +
+  labs(x = 'SOA', y = 'Sum IA per SOA', color = '# of words') +
+  theme(axis.title.x = element_text(size = 30), axis.title.y = element_text(size = 30), axis.text = element_text(size = 20))
+
+ia_sum_soa %>% ggplot(mapping = aes(x = soa, y = imgIA)) +
+  theme_bw() +
+  geom_boxplot() +
+  labs(x = 'SOA', y = 'Image IA per SOA', color = '# of words') +
+  theme(axis.title.x = element_text(size = 30), axis.title.y = element_text(size = 30), axis.text = element_text(size = 20))
+
+model1 = aov(imgIA ~ soa, data = ia_sum_soa)
+summary(model1)
+posthocPairwiseT(x = model1, p.adjust.method = 'holm')
+residual1 = model1$residuals
+shapiro.test(x=residual1)
+leveneTest(imgIA ~ soa, data = ia_sum_soa)
+oneway.test(imgIA ~ soa, data = ia_sum_soa)
+
+model2 = aov(sumIA ~ soa, data = ia_sum_soa)
+summary(model2)
+posthocPairwiseT(x = model2, p.adjust.method = 'holm')
+residual2 = model2$residuals
+shapiro.test(x=residual2)
+leveneTest(sumIA ~ soa, data = ia_sum_soa)
+oneway.test(sumIA ~ soa, data = ia_sum_soa)
+```
+
+
 ```{r display images}
 source('function-image_utilities.R')
 ia_sum = ia_sum %>% arrange(sumIA)
@@ -792,6 +852,24 @@ all_words = all_after %>% group_by(stem_word) %>% summarise(word_ia = mean(IA), 
 
 ```{r}
 
+```
+
+
+```{r}
+
+```
+
+
+
+```{r}
+colnames(AI) = c('word','freq')
+ai = c()
+for (i in 1:31) {
+  tempw = replicate(as.character(AI[i,1]), n = as.numeric(AI[i,2]))
+  ai = c(ai, tempw)
+}
+df = as.data.frame(ai)
+write.csv(df, file = 'ai.csv')
 ```
 
 
