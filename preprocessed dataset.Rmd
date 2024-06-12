@@ -138,3 +138,4 @@ all_response = all_response %>% select(-11, -12, -13)
 save(all_after, all_df, bottom_ia, confidence_df, frequency, img_ia, 
          master_df, top_ia, all_response, file = 'preprocessed.RData')
 ```
+

@@ -66,7 +66,7 @@ calculate_auc_img_sbj_word <- function(img_df, other_image_dfs, target_img_id, t
   
   all_plots <- list()
   all_agg_data <- data.table()
-  fix_no_other_participants <- 9
+  fix_no_other_participants <- 27
   
   hit_count_df <- img_df[stem_word == target_word & sbj_idx != target_subject_index, .(subject, sbj_idx, word, confidence, soa, stem_word, frequency)]
 
@@ -213,7 +213,7 @@ calculate_auc_img_sbj_word <- function(img_df, other_image_dfs, target_img_id, t
   fa_ui_cum_percentage <- round(c(calc_cumsum_percentage(fa_ui_percentage), 100), digits = 3)
   
   criterion=rev(c(0:fix_no_other_participants))
-  sig_df <- data.table(criterion=criterion, criterion_index=round(criterion/9, digits=3),
+  sig_df <- data.table(criterion=criterion, criterion_index=round(criterion/27*100, digits=3),
                        hit_count=hit_count, hit_percentage=hit_percentage, 
                        hit_cum_percentage=head(hit_cum_percentage,-1), fa_count=fa_count, fa_percentage=fa_percentage,
                        fa_cum_percentage=head(fa_cum_percentage, -1), hit_confidence=hit_confidence, fa_confidence=fa_confidence,
@@ -240,16 +240,22 @@ calculate_auc_img_sbj_word <- function(img_df, other_image_dfs, target_img_id, t
   auc=sum((roc_df$tpr*roc_df$dFPR)) + sum(sum(roc_df$dTPR*roc_df$dFPR)/2)
   #print(sprintf('word = %s, sbj_idx = %d, auc = %.4f', target_word, target_subject_index, auc))
   
+  #print(sig_df)
+  
   if (output_plot) {
     sig_plt <- ggplot(sig_df) +
       geom_path(aes(x=criterion_index, y=hit_cum_percentage), colour="green", size=2) +
       geom_point(aes(x=criterion_index, y=hit_cum_percentage), colour="green", size=5) +
       geom_path(aes(x=criterion_index, y=fa_cum_percentage), colour="red", size=2) +
       geom_point(aes(x=criterion_index, y=fa_cum_percentage), colour="red", size=5) +
-      scale_x_reverse(labels = percent) + 
+      scale_x_continuous(limits=c(0, 100)) +
+      scale_y_continuous(limits=c(0, 100)) +
+      scale_x_reverse() +
+      #scale_x_reverse(labels = percent) + 
       xlab("Percentage of Participants") +
       ylab("Cumulative Percentage") +
-      theme(axis.text=element_text(size=20), axis.title.x = element_text(size = 25), axis.title.y = element_text(size = 25))
+      theme(axis.text=element_text(size=20), axis.title.x = element_text(size = 25), axis.title.y = element_text(size = 25)) +
+      coord_fixed(ratio = 1) 
     
     roc_plt <- ggplot(roc, aes(x=fpr, y=tpr)) +
       geom_point(size=5) +
@@ -261,7 +267,8 @@ calculate_auc_img_sbj_word <- function(img_df, other_image_dfs, target_img_id, t
       ylab("Within-image proportion") +
       xlab("Other-images proportion") + 
       ggtitle(sprintf("ROC Curve (subject index=%d, word=%s, type1auc = %.4f)", 1, target_word, auc)) +
-      theme(axis.text=element_text(size=20), axis.title.x = element_text(size = 25), axis.title.y = element_text(size = 25))
+      theme(axis.text=element_text(size=20), axis.title.x = element_text(size = 25), axis.title.y = element_text(size = 25)) +
+      coord_fixed(ratio = 1) 
     
     if (include_confidence) {
       table_cells <- rbind(sig_df$hit_count, sig_df$fa_count,
@@ -352,5 +359,6 @@ calculate_auc_img_sbj_word <- function(img_df, other_image_dfs, target_img_id, t
     }
   }
   
+
   return(auc)
 }
