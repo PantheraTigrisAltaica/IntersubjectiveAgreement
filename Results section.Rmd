@@ -32,6 +32,42 @@ all_response$order[temp] = 4
 ```
 
 
+#---------------Adding IA per SOA & selection-----------------
+```{r remove conf = 1}
+load(file = "IA_perSOA.RData")
+IA_perSOA_after = IA_perSOA %>% filter(word_count != 1)
+
+temp_IA = IA_perSOA_after %>% dplyr::select(-5,-6)
+all_response = left_join(all_response, temp_IA, by = c('img_id','soa','stem_word'))
+all_response = all_response %>% filter(!is.na(avg_type1auc))
+```
+
+
+```{r additional selection}
+#some participants gave repetitive responses under the same image
+temp = all_response %>% filter(avg_type1auc <= 0.5)
+
+#remove from all_response
+temp_freq = temp %>% group_by(img_id, stem_word, subject) %>% summarise(n = n(), .groups = 'drop')
+temp_freq = temp_freq %>% filter(n > 1)
+all_response = left_join(all_response, temp_freq, by = c('img_id', 'stem_word', 'subject'))
+all_response = all_response %>% filter(is.na(n)) %>% select(-n)
+
+#remove from frequency
+temp_freq = temp_freq %>% group_by(img_id, stem_word) %>% summarise(N = sum(n), n = n(), .groups = 'drop')
+temp_freq = temp_freq %>% mutate(adjust = N - n)
+frequency = left_join(frequency, temp_freq, by = c('img_id', 'stem_word'))
+frequency$adjust[is.na(frequency$adjust)] = 0
+frequency = frequency %>% mutate(wf = wf - adjust) %>% select(1:4)
+
+#also remove from all_after
+all_after = left_join(all_after, temp_freq, by = c('img_id', 'stem_word'))
+all_after$adjust[is.na(all_after$adjust)] = 0
+all_after = all_after %>% filter(is.na(n) | n != 1 | IA > 0.5) %>% mutate(freq = freq - adjust) %>% select(1:5)
+```
+
+
+
 ```{r frequency - word IA}
 frequency$wf = as.factor(frequency$wf)
 
@@ -305,30 +341,6 @@ number_soa_image %>% ggplot(mapping = aes(x = mean, color = soa, fill = soa)) +
 
 
 #calculated and using word IA for each SOA
-```{r remove conf = 1}
-load(file = "IA_perSOA.RData")
-IA_perSOA_after = IA_perSOA %>% filter(word_count != 1)
-
-temp_IA = IA_perSOA_after %>% dplyr::select(-5,-6)
-all_response = left_join(all_response, temp_IA, by = c('img_id','soa','stem_word'))
-all_response = all_response %>% filter(!is.na(avg_type1auc))
-```
-
-
-```{r additional selection}
-#some participants gave repetitive responses under the same image
-temp = all_response %>% filter(avg_type1auc <= 0.5)
-all_response = all_response %>% filter(avg_type1auc > 0.5)
-
-#also remove from all_after
-temp = temp %>% group_by(img_id, soa, stem_word) %>% summarise(n = n(), .groups = 'drop')
-temp = temp %>% group_by(img_id, stem_word) %>% summarise(n = n(), .groups = 'drop')
-temp = temp %>% filter(n == 1)
-all_after = left_join(all_after, temp, by = c('img_id', 'stem_word'))
-all_after = all_after %>% filter(is.na(n) | IA > 0.5) %>% select(-n)
-```
-
-
 ```{r ANOVA}
 library(car)
 library(lsr)
@@ -466,17 +478,17 @@ selection %>% ggplot(mapping = aes(x = model, y = value, fill = Method)) +
 all_response$soa = as.factor(all_response$soa)
 all_response$confidence = as.numeric(all_response$confidence)
 
-all_response %>% filter(soa == 267) %>% ggplot(mapping = aes(x = confidence)) +
+all_response %>% filter(soa == 67) %>% ggplot(mapping = aes(x = confidence)) +
   theme_bw() +
   geom_histogram(position = 'dodge',bins = 13) +
   labs(x = 'Confidence') +
   theme(axis.title.x = element_text(size = 30), axis.title.y = element_text(size = 30), axis.text = element_text(size = 20))
 
-all_response %>% filter(soa == 267) %>% ggplot(mapping = aes(x = avg_type1auc)) +
+all_response %>% filter(soa == 67) %>% ggplot(mapping = aes(x = avg_type1auc)) +
   theme_bw() +
   geom_histogram() +
   labs(x = 'Word IA') +
-  scale_x_reverse() +
+  scale_x_reverse(breaks = seq(0.5, 1, 0.1)) +
   theme(axis.title.x = element_text(size = 30), axis.title.y = element_text(size = 30), axis.text = element_text(size = 20))
 
 all_response %>% ggplot(mapping = aes(x = confidence, y = avg_type1auc, fill = soa, color = soa)) +
@@ -487,10 +499,11 @@ all_response %>% ggplot(mapping = aes(x = confidence, y = avg_type1auc, fill = s
   labs(x = 'Confidence', y = "Word IA") +
   theme(axis.title.x = element_text(size = 30), axis.title.y = element_text(size = 30), axis.text = element_text(size = 20))
 
-all_response %>% filter(soa == 267) %>% ggplot(mapping = aes(x = confidence, y = avg_type1auc)) +
+all_response %>% filter(soa == 67) %>% ggplot(mapping = aes(x = confidence, y = avg_type1auc)) +
   theme_bw() +
   geom_jitter(alpha = 0.4) +
-  geom_smooth(method = 'lm', color = 'blue', size = 2) +
+  scale_y_continuous(breaks = seq(0.5, 1, 0.1)) +
+  geom_smooth(method = 'lm', color = 'red', size = 2) +
   labs(x = 'Confidence', y = "Word IA") +
   theme(axis.title.x = element_text(size = 30), axis.title.y = element_text(size = 30), axis.text = element_text(size = 20))
 
@@ -498,6 +511,7 @@ all_response %>% ggplot(mapping = aes(x = as.factor(confidence), y = avg_type1au
   theme_bw() +
   geom_boxplot() +
   labs(x = 'Confidence', y = "Word IA") +
+  scale_y_continuous(breaks = seq(0.5, 1, 0.1)) +
   theme(axis.title.x = element_text(size = 30), axis.title.y = element_text(size = 30), axis.text = element_text(size = 20))
 ```
 
